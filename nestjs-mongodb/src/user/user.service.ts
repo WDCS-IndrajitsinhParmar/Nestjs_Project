@@ -1,85 +1,62 @@
-import { ConflictException, HttpException, HttpStatus, Injectable, Res } from "@nestjs/common";
+import { HttpException, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import mongoose, { Model, mongo } from "mongoose";
-import { CreateUserDto } from "src/dto/User.dto";
-import { User } from "src/schema/User.schema";
+import { Model} from "mongoose";
+import { CreateUserDto } from "./dto/User.dto";
+import { UserSettings } from "./schema/Settings.schema";
+import { User } from "./schema/User.schema";
 
 @Injectable()
 export class UserServices{
 
     constructor(
-        @InjectModel(User.name) private userModel:Model<User>
+        @InjectModel(User.name) private userModel:Model<User>,
+        @InjectModel(UserSettings.name) private settingsModel:Model<UserSettings>
     ) {}
 
-    async createUser(createUser:CreateUserDto){
+    async createUser({settings,...createUser}:CreateUserDto){
         try {
+            if(settings){
+                const newSettings = new this.settingsModel(settings)
+                const savedsettings = await newSettings.save();
+                const newUser = new this.userModel({
+                    ...createUser,
+                    settings:savedsettings._id
+                })
+                await newUser.save()
+                return "user created successfully"
+            }
             const newUser = new this.userModel(createUser);
-            await newUser.save()
+            await newUser.save();
             return "user created successfully"
         } catch (error) {
-           throw new HttpException({
-                statusCode:HttpStatus.CONFLICT,
-                error:"Email already exist"
-            },HttpStatus.CONFLICT);
+            if(error.code === 11000){
+                throw new HttpException("Email already exist",409);
+            }else{
+                console.log(error)
+                throw new HttpException("Internal server error",500);
+            }
         }
     }
 
     async getALL(){
-        return await this.userModel.find()
+        return await this.userModel.find().populate(['settings','posts'])
     }
 
     async updateUser(id:string, updateUser:CreateUserDto){
-        try {
-            const user = await this.userModel.findByIdAndUpdate(id,updateUser,{new:true})   
-        if(!user){
-            throw new HttpException({
-                statusCode:HttpStatus.NOT_FOUND,
-                error:"User not found"
-            },HttpStatus.NOT_FOUND);
-          }
+        const user = await this.userModel.findByIdAndUpdate(id,updateUser,{new:true})   
+        if(!user) throw new HttpException("User not found",404)
         return "User updated successfully"
-        } catch (error) {
-            throw new HttpException({
-                statusCode:HttpStatus.NOT_FOUND,
-                error:"User not found"
-            },HttpStatus.NOT_FOUND);
-        }
     }
 
     async findUserById(id:string){
-        try {
-            const user = await this.userModel.findById(id) 
-            if(!user){
-                throw new HttpException({
-                    statusCode:HttpStatus.NOT_FOUND,
-                    error:"User not found"
-                },HttpStatus.NOT_FOUND);
-                }
-            return user
-        }catch (error) {
-            throw new HttpException({
-                statusCode:HttpStatus.NOT_FOUND,
-                error:"User not found"
-            },HttpStatus.NOT_FOUND);
-        }
+        const user = await this.userModel.findById(id).populate(['settings','posts']) 
+        if(!user) throw new HttpException("User not found",404)
+        return user
     }
 
     async deleteUser(id:string){
-        try {
-            const user = await this.userModel.findByIdAndDelete(id)
-            console.log(user,"user")
-            if(!user){
-                throw new HttpException({
-                    statusCode:HttpStatus.NOT_FOUND,
-                    error:"User not found"
-                },HttpStatus.NOT_FOUND);
-                }
-            return "User deleted successfully"
-        }catch (error) {
-            throw new HttpException({
-                statusCode:HttpStatus.NOT_FOUND,
-                error:"User not found"
-            },HttpStatus.NOT_FOUND);
-        }
+        const user = await this.userModel.findByIdAndDelete(id)
+        if(!user) throw new HttpException("User not found",404)
+        return "User deleted successfully" 
     }
 }

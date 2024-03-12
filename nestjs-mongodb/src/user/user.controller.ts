@@ -1,6 +1,7 @@
-import { Body, Controller, Post, Get, Param, Patch, Delete } from "@nestjs/common";
+import { Body, Controller, Post, Get, Param, Patch, Delete, HttpException } from "@nestjs/common";
 import { UserServices } from "./user.service";
-import { CreateUserDto } from "src/dto/User.dto";
+import { CreateUserDto } from "./dto/User.dto";
+import mongoose from "mongoose";
 
 @Controller("user")
 export class UserController{
@@ -18,16 +19,22 @@ export class UserController{
 
     @Patch('/update/:id')
     updateUser(@Param("id") id:string, @Body() body:CreateUserDto){
+        const validId = mongoose.Types.ObjectId.isValid(id)
+        if(!validId) throw new HttpException("User not found",404)
         return this.userServices.updateUser(id,body)
     }
 
     @Get(":id")
     getById(@Param("id") id:string){
+        const validId = mongoose.Types.ObjectId.isValid(id)
+        if(!validId) throw new HttpException("User not found",404)
         return this.userServices.findUserById(id)
     }
 
     @Delete(":id")
     delete(@Param("id") id:string){
+        const validId = mongoose.Types.ObjectId.isValid(id)
+        if(!validId) throw new HttpException("User not found",404)
         return this.userServices.deleteUser(id)
     }
 }
